@@ -9,66 +9,58 @@ if st.button("🔄 Refresh Prices"):
     with st.spinner("Fetching latest prices..."):
 
         # --- Exchange Rates ---
-        krw_rate = yf.Ticker("KRW=X").info.get("currentPrice", 1)
-        eur_rate = yf.Ticker("EURUSD=X").info.get("currentPrice", 1)
+        krw_rate = yf.Ticker("KRW=X").history(period="5d")["Close"].iloc[-1]
+        eur_rate = yf.Ticker("EURUSD=X").history(period="5d")["Close"].iloc[-1]
 
-        # --- Korean Exchange Table ---
-        korean_securities = [
-            {"name": "Samsung Electronics", "ticker": "005930.KS"},
-            {"name": "Samsung Electronics Pref", "ticker": "005935.KS"},
-            {"name": "SK Hynix", "ticker": "000660.KS"},
-        ]
-
-        kr_rows = []
-        for s in korean_securities:
-            info = yf.Ticker(s["ticker"]).info
-            price = info.get("currentPrice", 0)
+        # --- Helper to get price and % change ---
+        def get_price_and_change(ticker):
+            info = yf.Ticker(ticker).info
+            price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
             change = info.get("regularMarketChangePercent", 0)
-            kr_rows.append({
-                "Security": s["name"],
-                "Price (KRW)": f"{price:,.0f}",
-                "Daily Change %": f"{change:.2f}%"
-            })
+            return price, change
 
+        # --- Korean Exchange Prices ---
+        sec_kr,   sec_kr_chg   = get_price_and_change("005930.KS")
+        pref_kr,  pref_kr_chg  = get_price_and_change("005935.KS")
+        hynix_kr, hynix_kr_chg = get_price_and_change("000660.KS")
+
+        # --- ADR Prices ---
+        sec_adr,   sec_adr_chg   = get_price_and_change("SMSN.IL")
+        pref_adr,  pref_adr_chg  = get_price_and_change("SMSD.IL")
+        hynix_adr, hynix_adr_chg = get_price_and_change("HY9H.F")
+
+        # --- Implied KRW prices from ADRs ---
+        sec_implied   = (sec_adr / 25) * krw_rate
+        pref_implied  = (pref_adr / 25) * krw_rate
+        hynix_implied = (hynix_adr / 1) * eur_rate * krw_rate
+
+        # --- Premium / Discount % ---
+        sec_prem   = ((sec_implied / sec_kr) - 1) * 100    if sec_kr   else 0
+        pref_prem  = ((pref_implied / pref_kr) - 1) * 100  if pref_kr  else 0
+        hynix_prem = ((hynix_implied / hynix_kr) - 1) * 100 if hynix_kr else 0
+
+        # TABLE 1: Korean Exchange Prices
         st.subheader("Korean Exchange Prices")
-        st.dataframe(pd.DataFrame(kr_rows), use_container_width=True)
+        kr_df = pd.DataFrame([
+            {"Security": "Samsung Electronics",      "Price (KRW)": f"{sec_kr:,.0f}",   "Daily Change %": f"{sec_kr_chg:.2f}%",   "ADR Implied (KRW)": f"{sec_implied:,.0f}",   "Premium / Discount %": f"{sec_prem:.2f}%"},
+            {"Security": "Samsung Electronics Pref", "Price (KRW)": f"{pref_kr:,.0f}",  "Daily Change %": f"{pref_kr_chg:.2f}%",  "ADR Implied (KRW)": f"{pref_implied:,.0f}",  "Premium / Discount %": f"{pref_prem:.2f}%"},
+            {"Security": "SK Hynix",                 "Price (KRW)": f"{hynix_kr:,.0f}", "Daily Change %": f"{hynix_kr_chg:.2f}%", "ADR Implied (KRW)": f"{hynix_implied:,.0f}", "Premium / Discount %": f"{hynix_prem:.2f}%"},
+        ])
+        st.dataframe(kr_df, hide_index=True, use_container_width=True)
 
-        # --- ADR Table ---
-        adr_securities = [
-            {"name": "Samsung Electronics (USD)", "ticker": "SMSN.IL", "currency": "USD", "shares": 25, "kr_ticker": "005930.KS", "kr_price": float(kr_rows[0]["Price (KRW)"].replace(",", ""))},
-            {"name": "Samsung Pref (USD)",         "ticker": "SMSD.IL", "currency": "USD", "shares": 25, "kr_ticker": "005935.KS", "kr_price": float(kr_rows[1]["Price (KRW)"].replace(",", ""))},
-            {"name": "SK Hynix (EUR)",             "ticker": "HY9H.F",  "currency": "EUR", "shares": 1,  "kr_ticker": "000660.KS", "kr_price": float(kr_rows[2]["Price (KRW)"].replace(",", ""))},
-        ]
-
-        adr_rows = []
-        for s in adr_securities:
-            info = yf.Ticker(s["ticker"]).info
-            price = info.get("currentPrice", 0)
-            change = info.get("regularMarketChangePercent", 0)
-
-            # Implied Korean price based on ADR
-            if s["currency"] == "EUR":
-                implied_krw = (price / s["shares"]) * eur_rate * krw_rate
-            else:
-                implied_krw = (price / s["shares"]) * krw_rate
-
-            premium_pct = ((implied_krw / s["kr_price"]) - 1) * 100 if s["kr_price"] else 0
-
-            adr_rows.append({
-                "Security": s["name"],
-                "ADR Price": f"{price:.2f}",
-                "Daily Change %": f"{change:.2f}%",
-                "Implied Korean Price (KRW)": f"{implied_krw:,.0f}",
-                "Premium / Discount %": f"{premium_pct:.2f}%"
-            })
-
+        # TABLE 2: ADR Prices
         st.subheader("ADR Prices")
-        st.dataframe(pd.DataFrame(adr_rows), use_container_width=True)
+        adr_df = pd.DataFrame([
+            {"Security": "Samsung Electronics (USD)", "ADR Price": f"{sec_adr:,.2f}",   "Daily Change %": f"{sec_adr_chg:.2f}%"},
+            {"Security": "Samsung Pref (USD)",        "ADR Price": f"{pref_adr:,.2f}",  "Daily Change %": f"{pref_adr_chg:.2f}%"},
+            {"Security": "SK Hynix (EUR)",            "ADR Price": f"{hynix_adr:,.2f}", "Daily Change %": f"{hynix_adr_chg:.2f}%"},
+        ])
+        st.dataframe(adr_df, hide_index=True, use_container_width=True)
 
-        # --- Exchange Rates Table ---
+        # TABLE 3: Exchange Rates
         st.subheader("Exchange Rates")
-        fx_rows = [
+        fx_df = pd.DataFrame([
             {"Pair": "USD / KRW", "Rate": f"{krw_rate:,.2f}"},
             {"Pair": "EUR / USD", "Rate": f"{eur_rate:.4f}"},
-        ]
-        st.dataframe(pd.DataFrame(fx_rows), use_container_width=True)
+        ])
+        st.dataframe(fx_df, hide_index=True, use_container_width=True)
