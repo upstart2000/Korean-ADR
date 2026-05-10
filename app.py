@@ -6,8 +6,17 @@ st.set_page_config(page_title="Korea ADR Arbitrage Tracker", layout="wide")
 st.title("Korea ADR Arbitrage Tracker")
 
 def fetch_all_data():
-    krw_rate = yf.Ticker("KRW=X").history(period="5d")["Close"].iloc[-1]
-    eur_rate = yf.Ticker("EURUSD=X").history(period="5d")["Close"].iloc[-1]
+    # Fetch 2 days of data to calculate daily % change
+    krw_ticker = yf.Ticker("KRW=X").history(period="2d")
+    eur_ticker = yf.Ticker("EURUSD=X").history(period="2d")
+    
+    krw_rate = krw_ticker["Close"].iloc[-1]
+    krw_prev = krw_ticker["Close"].iloc[-2]
+    krw_pct_chg = ((krw_rate / krw_prev) - 1) * 100
+
+    eur_rate = eur_ticker["Close"].iloc[-1]
+    eur_prev = eur_ticker["Close"].iloc[-2]
+    eur_pct_chg = ((eur_rate / eur_prev) - 1) * 100
 
     def get_price_and_change(ticker):
         info = yf.Ticker(ticker).info
@@ -23,29 +32,27 @@ def fetch_all_data():
     pref_adr,  pref_adr_chg  = get_price_and_change("SMSD.IL")
     hynix_adr, hynix_adr_chg = get_price_and_change("HY9H.F")
 
-    # ORIGINAL LOGIC: ADR price -> Implied Korean Price (for Table 1)
+    # Table 1 Logic: ADR price -> Implied Korean Price
     sec_implied   = (sec_adr / 25) * krw_rate
     pref_implied  = (pref_adr / 25) * krw_rate
     hynix_implied = (hynix_adr / 1) * eur_rate * krw_rate
 
-    # NEW LOGIC: Korean Price -> Implied ADR Price (for Table 2)
+    # Table 2 Logic: Korean Price -> Implied ADR Price
     sec_adr_implied   = (sec_kr / krw_rate) * 25
     pref_adr_implied  = (pref_kr / krw_rate) * 25
     hynix_adr_implied = (hynix_kr / krw_rate) / eur_rate
 
-    # Premiums/Discounts (Using original logic for the percentage)
+    # Premiums/Discounts
     sec_prem   = ((sec_implied / sec_kr) - 1) * 100     if sec_kr   else 0
     pref_prem  = ((pref_implied / pref_kr) - 1) * 100   if pref_kr  else 0
     hynix_prem = ((hynix_implied / hynix_kr) - 1) * 100 if hynix_kr else 0
 
-    # Table 1: Kept exactly as it was (with ADR Implied column restored)
     kr_df = pd.DataFrame([
         {"Security": "Samsung Electronics",      "Price (KRW)": f"{sec_kr:,.0f}",   "Daily Change %": f"{sec_kr_chg:.2f}%",   "ADR Implied (KRW)": f"{sec_implied:,.0f}",   "Premium / Discount %": f"{sec_prem:.2f}%"},
         {"Security": "Samsung Electronics Pref", "Price (KRW)": f"{pref_kr:,.0f}",  "Daily Change %": f"{pref_kr_chg:.2f}%",  "ADR Implied (KRW)": f"{pref_implied:,.0f}",  "Premium / Discount %": f"{pref_prem:.2f}%"},
         {"Security": "SK Hynix",                 "Price (KRW)": f"{hynix_kr:,.0f}", "Daily Change %": f"{hynix_kr_chg:.2f}%", "ADR Implied (KRW)": f"{hynix_implied:,.0f}", "Premium / Discount %": f"{hynix_prem:.2f}%"},
     ])
 
-    # Table 2: Updated to show Implied ADR Price in USD/EUR with no decimals
     adr_df = pd.DataFrame([
         {"Security": "Samsung Electronics (USD)", "ADR Price": f"{sec_adr:,.0f}",   "Daily Change %": f"{sec_adr_chg:.2f}%", "Implied ADR Price": f"{sec_adr_implied:,.0f}",  "Premium / Discount %": f"{sec_prem:.2f}%"},
         {"Security": "Samsung Pref (USD)",        "ADR Price": f"{pref_adr:,.0f}",  "Daily Change %": f"{pref_adr_chg:.2f}%","Implied ADR Price": f"{pref_adr_implied:,.0f}", "Premium / Discount %": f"{pref_prem:.2f}%"},
@@ -53,8 +60,8 @@ def fetch_all_data():
     ])
 
     fx_df = pd.DataFrame([
-        {"Pair": "USD / KRW", "Rate": f"{krw_rate:,.2f}"},
-        {"Pair": "EUR / USD", "Rate": f"{eur_rate:.4f}"},
+        {"Pair": "USD / KRW", "Rate": f"{krw_rate:,.2f}", "Daily Change %": f"{krw_pct_chg:+.2f}%"},
+        {"Pair": "EUR / USD", "Rate": f"{eur_rate:.4f}",  "Daily Change %": f"{eur_pct_chg:+.2f}%"},
     ])
 
     return kr_df, adr_df, fx_df
