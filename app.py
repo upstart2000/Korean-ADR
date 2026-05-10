@@ -23,24 +23,26 @@ def fetch_all_data():
     pref_adr,  pref_adr_chg  = get_price_and_change("SMSD.IL")
     hynix_adr, hynix_adr_chg = get_price_and_change("HY9H.F")
 
-    sec_implied   = (sec_adr / 25) * krw_rate
-    pref_implied  = (pref_adr / 25) * krw_rate
-    hynix_implied = (hynix_adr / 1) * eur_rate * krw_rate
+    # Implied ADR prices based on Korean stock exchange prices
+    sec_adr_implied  = (sec_kr / krw_rate) * 25
+    pref_adr_implied = (pref_kr / krw_rate) * 25
+    hynix_adr_implied = (hynix_kr / krw_rate) / eur_rate
 
-    sec_prem   = ((sec_implied / sec_kr) - 1) * 100     if sec_kr   else 0
-    pref_prem  = ((pref_implied / pref_kr) - 1) * 100   if pref_kr  else 0
-    hynix_prem = ((hynix_implied / hynix_kr) - 1) * 100 if hynix_kr else 0
+    # Premiums/Discounts
+    sec_prem   = ((sec_adr / sec_adr_implied) - 1) * 100     if sec_adr_implied  else 0
+    pref_prem  = ((pref_adr / pref_adr_implied) - 1) * 100   if pref_adr_implied else 0
+    hynix_prem = ((hynix_adr / hynix_adr_implied) - 1) * 100 if hynix_adr_implied else 0
 
     kr_df = pd.DataFrame([
-        {"Security": "Samsung Electronics",      "Price (KRW)": f"{sec_kr:,.0f}",   "Daily Change %": f"{sec_kr_chg:.2f}%",   "ADR Implied (KRW)": f"{sec_implied:,.0f}",   "Premium / Discount %": f"{sec_prem:.2f}%"},
-        {"Security": "Samsung Electronics Pref", "Price (KRW)": f"{pref_kr:,.0f}",  "Daily Change %": f"{pref_kr_chg:.2f}%",  "ADR Implied (KRW)": f"{pref_implied:,.0f}",  "Premium / Discount %": f"{pref_prem:.2f}%"},
-        {"Security": "SK Hynix",                 "Price (KRW)": f"{hynix_kr:,.0f}", "Daily Change %": f"{hynix_kr_chg:.2f}%", "ADR Implied (KRW)": f"{hynix_implied:,.0f}", "Premium / Discount %": f"{hynix_prem:.2f}%"},
+        {"Security": "Samsung Electronics",      "Price (KRW)": f"{sec_kr:,.0f}",   "Daily Change %": f"{sec_kr_chg:.2f}%",   "Premium / Discount %": f"{sec_prem:.2f}%"},
+        {"Security": "Samsung Electronics Pref", "Price (KRW)": f"{pref_kr:,.0f}",  "Daily Change %": f"{pref_kr_chg:.2f}%",  "Premium / Discount %": f"{pref_prem:.2f}%"},
+        {"Security": "SK Hynix",                 "Price (KRW)": f"{hynix_kr:,.0f}", "Daily Change %": f"{hynix_kr_chg:.2f}%", "Premium / Discount %": f"{hynix_prem:.2f}%"},
     ])
 
     adr_df = pd.DataFrame([
-        {"Security": "Samsung Electronics (USD)", "ADR Price": f"{sec_adr:,.2f}",   "Daily Change %": f"{sec_adr_chg:.2f}%", "Implied Korean Price (KRW)": f"{sec_implied:,.0f}",   "Premium / Discount %": f"{sec_prem:.2f}%"},
-        {"Security": "Samsung Pref (USD)",        "ADR Price": f"{pref_adr:,.2f}",  "Daily Change %": f"{pref_adr_chg:.2f}%","Implied Korean Price (KRW)": f"{pref_implied:,.0f}",  "Premium / Discount %": f"{pref_prem:.2f}%"},
-        {"Security": "SK Hynix (EUR)",            "ADR Price": f"{hynix_adr:,.2f}", "Daily Change %": f"{hynix_adr_chg:.2f}%","Implied Korean Price (KRW)": f"{hynix_implied:,.0f}", "Premium / Discount %": f"{hynix_prem:.2f}%"},
+        {"Security": "Samsung Electronics (USD)", "ADR Price": f"{sec_adr:,.0f}",   "Daily Change %": f"{sec_adr_chg:.2f}%", "Implied ADR Price": f"{sec_adr_implied:,.0f}",  "Premium / Discount %": f"{sec_prem:.2f}%"},
+        {"Security": "Samsung Pref (USD)",        "ADR Price": f"{pref_adr:,.0f}",  "Daily Change %": f"{pref_adr_chg:.2f}%","Implied ADR Price": f"{pref_adr_implied:,.0f}", "Premium / Discount %": f"{pref_prem:.2f}%"},
+        {"Security": "SK Hynix (EUR)",            "ADR Price": f"{hynix_adr:,.0f}", "Daily Change %": f"{hynix_adr_chg:.2f}%","Implied ADR Price": f"{hynix_adr_implied:,.0f}", "Premium / Discount %": f"{hynix_prem:.2f}%"},
     ])
 
     fx_df = pd.DataFrame([
